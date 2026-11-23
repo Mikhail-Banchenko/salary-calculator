@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Калькулятор зарплаты</title>
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1d2330; --muted: #667085;
+    --line: #dde2ea; --accent: #2f6fde; --accent-text: #ffffff; --bad: #c2410c; --good: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #12151b; --card: #1b2029; --text: #e7eaf0; --muted: #98a2b3;
+      --line: #2c3340; --accent: #5b8ff0; --accent-text: #0b0e13; --bad: #fb923c; --good: #4ade80; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  label { display: block; font-weight: 600; margin-bottom: 4px; }
+  .hint { color: var(--muted); font-size: .85rem; font-weight: 400; }
+  input[type=number] { width: 100%; padding: 10px 12px; font-size: 1rem; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--bg); color: var(--text); }
+  input[type=number]:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  .field { margin-bottom: 14px; }
+  .day { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .day span { width: 68px; flex: none; color: var(--muted); font-size: .9rem; }
+  .day input { flex: 1; }
+  button { font: inherit; border-radius: 8px; cursor: pointer; }
+  .x { flex: none; width: 40px; height: 42px; border: 1px solid var(--line); background: var(--card); color: var(--muted); }
+  .add { border: 1px dashed var(--accent); background: transparent; color: var(--accent); padding: 8px 12px; width: 100%; }
+  .go { width: 100%; padding: 14px; border: 0; background: var(--accent); color: var(--accent-text); font-weight: 700; font-size: 1.05rem; }
+  .radio { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; margin: 6px 0; }
+  .err { color: var(--bad); margin: 8px 0 0; min-height: 1.2em; }
+  .big { text-align: center; padding: 8px 0 16px; }
+  .big .n { font-size: 2.4rem; font-weight: 800; color: var(--good); }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  tr.total td { border-bottom: 0; font-size: 1.1rem; }
+  .steps { color: var(--muted); font-size: .9rem; margin-top: 12px; }
+  #result { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Калькулятор зарплаты</h1>
+  <p class="sub">Введите данные за месяц и нажмите «Рассчитать». Ничего не сохраняется.</p>
+
+  <div class="card">
+    <h2>Выручка за день (руб.)</h2>
+    <div id="days"></div>
+    <button class="add" id="addDay" type="button">+ Добавить день</button>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label for="ops">Операции по карте <span class="hint">(количество, 0,5 руб. за каждую)</span></label>
+      <input id="ops" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+    </div>
+    <div class="field">
+      <label for="pct">Процент работника <span class="hint">(%)</span></label>
+      <input id="pct" type="number" min="0" max="100" step="any" inputmode="decimal" placeholder="например, 30">
+    </div>
+    <div class="field">
+      <label for="spend">Расходы на работе <span class="hint">(руб., например газировка)</span></label>
+      <input id="spend" type="number" min="0" step="any" inputmode="decimal" placeholder="0">
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>Расходы вычитаются из</label>
+      <label class="radio"><input type="radio" name="mode" value="gain"> выручки, до процента</label>
+      <label class="radio"><input type="radio" name="mode" value="salary" checked> зарплаты работника, после процента</label>
+    </div>
+  </div>
+
+  <button class="go" id="calc" type="button">Рассчитать</button>
+  <p class="err" id="err"></p>
+
+  <div class="card" id="result">
+    <div class="big"><div class="hint">Зарплата</div><div class="n" id="salary"></div></div>
+    <table id="stats"></table>
+    <div class="steps" id="steps"></div>
+  </div>
+</main>
+
+<script>
+  var CARD_FEE = 0.5; // BYN per card operation
+
+  var daysBox = document.getElementById('days');
+
+  function renumber() {
+    var rows = daysBox.querySelectorAll('.day');
+    rows.forEach(function (r, i) { r.querySelector('span').textContent = 'День ' + (i + 1); });
+  }
+
+  function addDay() {
+    var row = document.createElement('div');
+    row.className = 'day';
+    row.innerHTML = '<span></span><input type="number" min="0" step="any" inputmode="decimal" placeholder="0">' +
+      '<button class="x" type="button" aria-label="Удалить день">✕</button>';
+    row.querySelector('.x').onclick = function () {
+      if (daysBox.children.length > 1) { row.remove(); renumber(); }
+      else { row.querySelector('input').value = ''; }
+    };
+    row.querySelector('input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); addDay(); }
+    });
+    daysBox.appendChild(row);
+    renumber();
+    row.querySelector('input').focus();
+  }
+
+  function num(v) { return v === '' ? 0 : Number(v); }
+  function money(n) { return n.toFixed(2) + ' руб.'; }
+
+  function calculate() {
+    var err = document.getElementById('err');
+    err.textContent = '';
+
+    var gains = [];
+    daysBox.querySelectorAll('input').forEach(function (i) { if (i.value !== '') gains.push(Number(i.value)); });
+    var ops = num(document.getElementById('ops').value);
+    var pctRaw = document.getElementById('pct').value;
+    var pct = num(pctRaw);
+    var spend = num(document.getElementById('spend').value);
+    var mode = document.querySelector('input[name=mode]:checked').value;
+
+    if (gains.length === 0) { err.textContent = 'Введите выручку хотя бы за один день.'; return; }
+    if (pctRaw === '') { err.textContent = 'Введите процент работника.'; return; }
+    if (gains.some(function (g) { return isNaN(g) || g < 0; }) || isNaN(ops) || ops < 0 || isNaN(spend) || spend < 0) {
+      err.textContent = 'Числа не могут быть отрицательными.'; return;
+    }
+    if (pct < 0 || pct > 100) { err.textContent = 'Процент должен быть от 0 до 100.'; return; }
+
+    var totalGain = gains.reduce(function (a, b) { return a + b; }, 0);
+    var avg = totalGain / gains.length;
+    var fees = ops * CARD_FEE;
+    var afterFees = totalGain - fees;
+    var p = pct / 100;
+    var base, salary, company;
+
+    if (mode === 'gain') {
+      base = afterFees - spend;        // money that is split
+      salary = base * p;
+      company = base - salary;
+    } else {
+      base = afterFees;
+      salary = base * p - spend;
+      company = base - base * p;
+    }
+
+    var rows = [
+      ['Рабочих дней', String(gains.length)],
+      ['Общая выручка', money(totalGain)],
+      ['Средняя выручка в день', money(avg)],
+      ['Операции по карте', String(ops)],
+      ['Комиссия за карты', money(fees)],
+      ['Расходы на работе', money(spend)],
+      ['Забрала компания', money(company)]
+    ];
+    var html = rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('');
+    html += '<tr class="total"><td><b>Зарплата</b></td><td>' + money(salary) + '</td></tr>';
+    document.getElementById('stats').innerHTML = html;
+    document.getElementById('salary').textContent = money(salary);
+
+    var f = function (n) { return n.toFixed(2); };
+    document.getElementById('steps').textContent = mode === 'gain'
+      ? 'Расчёт: (' + f(totalGain) + ' − ' + f(fees) + ' комиссия − ' + f(spend) + ' расходы) × ' + pct + '% = ' + f(salary) + ' руб.'
+      : 'Расчёт: (' + f(totalGain) + ' − ' + f(fees) + ' комиссия) × ' + pct + '% − ' + f(spend) + ' расходы = ' + f(salary) + ' руб.';
+
+    var res = document.getElementById('result');
+    res.style.display = 'block';
+    res.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  document.getElementById('addDay').onclick = addDay;
+  document.getElementById('calc').onclick = calculate;
+  addDay();
+</script>
+</body>
+</html>
