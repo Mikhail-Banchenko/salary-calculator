@@ -1,4 +1,4 @@
-# Калькулятор зарплаты / Salary calculator
+Salary calculator
 
 Simple monthly salary calculator in Belarusian rubles. Adds up daily gains, subtracts card fees and work spendings, and shows the final salary with statistics. For personal use only.
 
