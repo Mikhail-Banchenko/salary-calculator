@@ -8,10 +8,12 @@
   :root {
     --bg: #f4f6f9; --card: #ffffff; --text: #1d2330; --muted: #667085;
     --line: #dde2ea; --accent: #2f6fde; --accent-text: #ffffff; --bad: #c2410c; --good: #15803d;
+    --filled: #e6efff;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #12151b; --card: #1b2029; --text: #e7eaf0; --muted: #98a2b3;
-      --line: #2c3340; --accent: #5b8ff0; --accent-text: #0b0e13; --bad: #fb923c; --good: #4ade80; }
+      --line: #2c3340; --accent: #5b8ff0; --accent-text: #0b0e13; --bad: #fb923c; --good: #4ade80;
+      --filled: #1f2c45; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
@@ -23,19 +25,38 @@
   h2 { font-size: 1.05rem; margin: 0 0 12px; }
   label { display: block; font-weight: 600; margin-bottom: 4px; }
   .hint { color: var(--muted); font-size: .85rem; font-weight: 400; }
-  input[type=number] { width: 100%; padding: 10px 12px; font-size: 1rem; border: 1px solid var(--line);
+  input[type=number], select { width: 100%; padding: 10px 12px; font: inherit; border: 1px solid var(--line);
     border-radius: 8px; background: var(--bg); color: var(--text); }
-  input[type=number]:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
   .field { margin-bottom: 14px; }
-  .day { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-  .day span { width: 68px; flex: none; color: var(--muted); font-size: .9rem; }
-  .day input { flex: 1; }
+  .row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .row > * { flex: 1; }
   button { font: inherit; border-radius: 8px; cursor: pointer; }
-  .x { flex: none; width: 40px; height: 42px; border: 1px solid var(--line); background: var(--card); color: var(--muted); }
-  .add { border: 1px dashed var(--accent); background: transparent; color: var(--accent); padding: 8px 12px; width: 100%; }
   .go { width: 100%; padding: 14px; border: 0; background: var(--accent); color: var(--accent-text); font-weight: 700; font-size: 1.05rem; }
   .radio { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; margin: 6px 0; }
   .err { color: var(--bad); margin: 8px 0 0; min-height: 1.2em; }
+
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .wd { text-align: center; font-size: .75rem; color: var(--muted); padding-bottom: 2px; }
+  .d { min-height: 58px; padding: 4px 2px; border: 1px solid var(--line); background: var(--card); color: var(--text);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; line-height: 1.2; }
+  .d .num { font-weight: 600; font-size: .9rem; }
+  .d .g { font-size: .72rem; color: var(--accent); font-weight: 700; margin-top: 3px; word-break: break-all; }
+  .d .o { font-size: .68rem; color: var(--muted); }
+  .d.has { background: var(--filled); border-color: var(--accent); }
+  .d.off { visibility: hidden; }
+  .totals { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: .9rem; color: var(--muted); }
+  .totals b { color: var(--text); }
+
+  dialog { border: 0; border-radius: 14px; padding: 20px; width: min(360px, calc(100vw - 32px));
+    background: var(--card); color: var(--text); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h3 { margin: 0 0 14px; }
+  .btns { display: flex; gap: 8px; margin-top: 6px; }
+  .btns button { flex: 1; padding: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  .btns .save { background: var(--accent); color: var(--accent-text); border: 0; font-weight: 700; }
+  .btns .clear { color: var(--bad); }
+
   .big { text-align: center; padding: 8px 0 16px; }
   .big .n { font-size: 2.4rem; font-weight: 800; color: var(--good); }
   table { width: 100%; border-collapse: collapse; }
@@ -49,19 +70,22 @@
 <body>
 <main>
   <h1>Калькулятор зарплаты</h1>
-  <p class="sub">Введите данные за месяц и нажмите «Рассчитать». Ничего не сохраняется.</p>
+  <p class="sub">Выберите месяц, нажмите на день и введите выручку и операции по карте. Ничего не сохраняется.</p>
 
   <div class="card">
-    <h2>Выручка за день (руб.)</h2>
-    <div id="days"></div>
-    <button class="add" id="addDay" type="button">+ Добавить день</button>
+    <div class="row">
+      <select id="month" aria-label="Месяц"></select>
+      <input id="year" type="number" min="2000" max="2100" step="1" inputmode="numeric" aria-label="Год">
+    </div>
+    <div class="cal" id="cal"></div>
+    <div class="totals">
+      <span>Выручка: <b id="tGain">0.00</b></span>
+      <span>Операций: <b id="tOps">0</b></span>
+      <span>Дней: <b id="tDays">0</b></span>
+    </div>
   </div>
 
   <div class="card">
-    <div class="field">
-      <label for="ops">Операции по карте <span class="hint">(количество, 0,5 руб. за каждую)</span></label>
-      <input id="ops" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
-    </div>
     <div class="field">
       <label for="pct">Процент работника <span class="hint">(%)</span></label>
       <input id="pct" type="number" min="0" max="100" step="any" inputmode="decimal" placeholder="например, 30">
@@ -87,64 +111,138 @@
   </div>
 </main>
 
+<dialog id="dlg">
+  <form method="dialog" id="dlgForm">
+    <h3 id="dlgTitle"></h3>
+    <div class="field">
+      <label for="dGain">Выручка за день <span class="hint">(руб.)</span></label>
+      <input id="dGain" type="number" min="0" step="any" inputmode="decimal" placeholder="0">
+    </div>
+    <div class="field">
+      <label for="dOps">Операции по карте <span class="hint">(0,5 руб. за каждую)</span></label>
+      <input id="dOps" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+    </div>
+    <p class="err" id="dErr"></p>
+    <div class="btns">
+      <button type="button" class="clear" id="dClear">Очистить</button>
+      <button type="button" id="dCancel">Отмена</button>
+      <button type="submit" class="save" id="dSave">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
-  var CARD_FEE = 0.5; // BYN per card operation
+  var CARD_FEE = 0.5; // руб. за одну операцию по карте
+  var MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  var MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  var WEEK = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
-  var daysBox = document.getElementById('days');
+  var data = {};      // "ГГГГ-ММ-ДД" -> { gain, ops }
+  var openKey = null;
 
-  function renumber() {
-    var rows = daysBox.querySelectorAll('.day');
-    rows.forEach(function (r, i) { r.querySelector('span').textContent = 'День ' + (i + 1); });
+  var $ = function (id) { return document.getElementById(id); };
+  var monthSel = $('month'), yearIn = $('year'), cal = $('cal'), dlg = $('dlg');
+
+  MONTHS.forEach(function (m, i) {
+    var o = document.createElement('option'); o.value = i; o.textContent = m; monthSel.appendChild(o);
+  });
+  var now = new Date();
+  monthSel.value = now.getMonth();
+  yearIn.value = now.getFullYear();
+
+  function ym() {
+    var y = parseInt(yearIn.value, 10);
+    return { y: isNaN(y) ? now.getFullYear() : y, m: Number(monthSel.value) };
   }
-
-  function addDay() {
-    var row = document.createElement('div');
-    row.className = 'day';
-    row.innerHTML = '<span></span><input type="number" min="0" step="any" inputmode="decimal" placeholder="0">' +
-      '<button class="x" type="button" aria-label="Удалить день">✕</button>';
-    row.querySelector('.x').onclick = function () {
-      if (daysBox.children.length > 1) { row.remove(); renumber(); }
-      else { row.querySelector('input').value = ''; }
-    };
-    row.querySelector('input').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); addDay(); }
-    });
-    daysBox.appendChild(row);
-    renumber();
-    row.querySelector('input').focus();
-  }
-
-  function num(v) { return v === '' ? 0 : Number(v); }
+  function key(y, m, d) { return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
   function money(n) { return n.toFixed(2) + ' руб.'; }
 
+  function monthEntries() {
+    var t = ym(), n = new Date(t.y, t.m + 1, 0).getDate(), list = [];
+    for (var d = 1; d <= n; d++) { var e = data[key(t.y, t.m, d)]; if (e) list.push(e); }
+    return list;
+  }
+
+  function render() {
+    var t = ym();
+    var first = (new Date(t.y, t.m, 1).getDay() + 6) % 7; // понедельник = 0
+    var n = new Date(t.y, t.m + 1, 0).getDate();
+    var html = WEEK.map(function (w) { return '<div class="wd">' + w + '</div>'; }).join('');
+    for (var i = 0; i < first; i++) html += '<div class="d off"></div>';
+    for (var d = 1; d <= n; d++) {
+      var e = data[key(t.y, t.m, d)];
+      html += '<button type="button" class="d' + (e ? ' has' : '') + '" data-day="' + d + '">' +
+        '<span class="num">' + d + '</span>' +
+        (e ? '<span class="g">' + fmt(e.gain) + '</span><span class="o">' + e.ops + ' оп.</span>' : '') +
+        '</button>';
+    }
+    cal.innerHTML = html;
+
+    var list = monthEntries();
+    $('tGain').textContent = list.reduce(function (a, e) { return a + e.gain; }, 0).toFixed(2);
+    $('tOps').textContent = list.reduce(function (a, e) { return a + e.ops; }, 0);
+    $('tDays').textContent = list.length;
+  }
+  function fmt(n) { return Number.isInteger(n) ? String(n) : n.toFixed(2); }
+
+  cal.addEventListener('click', function (ev) {
+    var b = ev.target.closest('.d[data-day]');
+    if (!b) return;
+    var t = ym(), d = Number(b.dataset.day);
+    openKey = key(t.y, t.m, d);
+    var e = data[openKey];
+    $('dlgTitle').textContent = d + ' ' + MONTHS_GEN[t.m] + ' ' + t.y;
+    $('dGain').value = e ? e.gain : '';
+    $('dOps').value = e ? e.ops : '';
+    $('dErr').textContent = '';
+    dlg.showModal();
+    $('dGain').focus();
+  });
+
+  $('dlgForm').addEventListener('submit', function (ev) {
+    var g = $('dGain').value, o = $('dOps').value;
+    var gain = g === '' ? 0 : Number(g), ops = o === '' ? 0 : Number(o);
+    if (isNaN(gain) || isNaN(ops) || gain < 0 || ops < 0) {
+      ev.preventDefault(); $('dErr').textContent = 'Числа не могут быть отрицательными.'; return;
+    }
+    if (ops !== Math.floor(ops)) {
+      ev.preventDefault(); $('dErr').textContent = 'Количество операций должно быть целым числом.'; return;
+    }
+    if (g === '' && o === '') delete data[openKey];
+    else data[openKey] = { gain: gain, ops: ops };
+    render();
+  });
+  $('dClear').onclick = function () { delete data[openKey]; dlg.close(); render(); };
+  $('dCancel').onclick = function () { dlg.close(); };
+  dlg.addEventListener('click', function (ev) { if (ev.target === dlg) dlg.close(); }); // нажатие на фон
+
+  monthSel.onchange = render;
+  yearIn.oninput = render;
+
   function calculate() {
-    var err = document.getElementById('err');
+    var err = $('err');
     err.textContent = '';
 
-    var gains = [];
-    daysBox.querySelectorAll('input').forEach(function (i) { if (i.value !== '') gains.push(Number(i.value)); });
-    var ops = num(document.getElementById('ops').value);
-    var pctRaw = document.getElementById('pct').value;
-    var pct = num(pctRaw);
-    var spend = num(document.getElementById('spend').value);
+    var list = monthEntries();
+    var pctRaw = $('pct').value, pct = pctRaw === '' ? 0 : Number(pctRaw);
+    var spendRaw = $('spend').value, spend = spendRaw === '' ? 0 : Number(spendRaw);
     var mode = document.querySelector('input[name=mode]:checked').value;
 
-    if (gains.length === 0) { err.textContent = 'Введите выручку хотя бы за один день.'; return; }
+    if (list.length === 0) { err.textContent = 'Нажмите на день в календаре и введите выручку.'; return; }
     if (pctRaw === '') { err.textContent = 'Введите процент работника.'; return; }
-    if (gains.some(function (g) { return isNaN(g) || g < 0; }) || isNaN(ops) || ops < 0 || isNaN(spend) || spend < 0) {
-      err.textContent = 'Числа не могут быть отрицательными.'; return;
-    }
-    if (pct < 0 || pct > 100) { err.textContent = 'Процент должен быть от 0 до 100.'; return; }
+    if (isNaN(spend) || spend < 0) { err.textContent = 'Числа не могут быть отрицательными.'; return; }
+    if (isNaN(pct) || pct < 0 || pct > 100) { err.textContent = 'Процент должен быть от 0 до 100.'; return; }
 
-    var totalGain = gains.reduce(function (a, b) { return a + b; }, 0);
-    var avg = totalGain / gains.length;
+    var totalGain = list.reduce(function (a, e) { return a + e.gain; }, 0);
+    var ops = list.reduce(function (a, e) { return a + e.ops; }, 0);
+    var avg = totalGain / list.length;
     var fees = ops * CARD_FEE;
     var afterFees = totalGain - fees;
     var p = pct / 100;
     var base, salary, company;
 
     if (mode === 'gain') {
-      base = afterFees - spend;        // money that is split
+      base = afterFees - spend;
       salary = base * p;
       company = base - salary;
     } else {
@@ -154,7 +252,7 @@
     }
 
     var rows = [
-      ['Рабочих дней', String(gains.length)],
+      ['Рабочих дней', String(list.length)],
       ['Общая выручка', money(totalGain)],
       ['Средняя выручка в день', money(avg)],
       ['Операции по карте', String(ops)],
@@ -164,22 +262,21 @@
     ];
     var html = rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('');
     html += '<tr class="total"><td><b>Зарплата</b></td><td>' + money(salary) + '</td></tr>';
-    document.getElementById('stats').innerHTML = html;
-    document.getElementById('salary').textContent = money(salary);
+    $('stats').innerHTML = html;
+    $('salary').textContent = money(salary);
 
     var f = function (n) { return n.toFixed(2); };
-    document.getElementById('steps').textContent = mode === 'gain'
+    $('steps').textContent = mode === 'gain'
       ? 'Расчёт: (' + f(totalGain) + ' − ' + f(fees) + ' комиссия − ' + f(spend) + ' расходы) × ' + pct + '% = ' + f(salary) + ' руб.'
       : 'Расчёт: (' + f(totalGain) + ' − ' + f(fees) + ' комиссия) × ' + pct + '% − ' + f(spend) + ' расходы = ' + f(salary) + ' руб.';
 
-    var res = document.getElementById('result');
+    var res = $('result');
     res.style.display = 'block';
     res.scrollIntoView({ behavior: 'smooth' });
   }
 
-  document.getElementById('addDay').onclick = addDay;
-  document.getElementById('calc').onclick = calculate;
-  addDay();
+  $('calc').onclick = calculate;
+  render();
 </script>
 </body>
 </html>
